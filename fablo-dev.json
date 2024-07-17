@@ -1,0 +1,130 @@
+{
+  "$schema": "https://github.com/hyperledger-labs/fablo/releases/download/1.2.1-unstable.0/schema.json",
+  "global": {
+    "fabricVersion": "2.5.0",
+    "tls": false,
+    "peerDevMode": true,
+    "engine": "docker"
+  },
+  "orgs": [
+    {
+      "organization": {
+        "name": "Owners",
+        "mspName": "OwnersMSP",
+        "domain": "owners.org"
+      },
+      "ca": {
+        "prefix": "ca"
+      },
+      "peer": {
+        "prefix": "peer",
+        "instances": 1,
+        "db": "CouchDb"
+      },
+      "orderers": [
+        {
+	  "groupName": "host",
+          "prefix": "orderer",
+          "type": "solo",
+          "instances": 1
+        }
+      ]
+    },
+    {
+      "organization": {
+        "name": "Org1",
+        "mspName": "Org1MSP",
+        "domain": "org1.co"
+      },
+      "ca": {
+        "prefix": "ca"
+      },
+      "peer": {
+        "prefix": "peer",
+        "instances": 1,
+        "db": "CouchDb"
+      }
+    },
+    {
+      "organization": {
+        "name": "Org2",
+        "mspName": "Org2MSP",
+        "domain": "org2.ac"
+      },
+      "ca": {
+        "prefix": "ca"
+      },
+      "peer": {
+        "prefix": "peer",
+        "instances": 1,
+        "db": "CouchDb"
+      }
+    },
+    {
+      "organization": {
+        "name": "Org3",
+        "mspName": "Org3MSP",
+        "domain": "org3.gov"
+      },
+      "ca": {
+        "prefix": "ca"
+      },
+      "peer": {
+        "prefix": "peer",
+        "instances": 1,
+        "db": "CouchDb"
+      }
+    }
+  ],
+  "channels": [
+    {
+      "name": "ch1",
+      "orgs": [
+        {
+          "name": "Org1",
+          "peers": [
+            "peer0"
+          ]
+        },
+        {
+          "name": "Org2",
+          "peers": [
+            "peer0"
+          ]
+        },
+        {
+          "name": "Org3",
+          "peers": [
+            "peer0"
+          ]
+        },
+        {
+          "name": "Owners",
+          "peers": [
+            "peer0"
+          ]
+        }
+      ]
+    }
+  ],
+  "chaincodes": [
+    {
+      "name": "privacy",
+      "version": "1.0",
+      "lang": "java",
+      "channel": "ch1",
+      "directory": "chaincode",
+      "endorsement": "OR('Org1MSP.member', 'Org2MSP.member', 'Org3MSP.member', 'OwnersMSP.member')",
+      "privateData": [
+        {
+          "name": "CollectionA",
+          "orgNames": [
+            "Org1",
+            "Org2",
+	    "Org3"
+          ]
+        }
+      ]
+    }
+  ]
+}

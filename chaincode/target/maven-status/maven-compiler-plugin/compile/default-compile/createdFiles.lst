@@ -1,0 +1,12 @@
+main\java\uk\ac\soton\am26g21\contract\CouchQuery.class
+main\java\uk\ac\soton\am26g21\state\ChaincodeEvent.class
+main\java\uk\ac\soton\am26g21\state\LedgerState.class
+main\java\uk\ac\soton\am26g21\OrganizationAccess.class
+main\java\uk\ac\soton\am26g21\state\LedgerState$StateType.class
+main\java\uk\ac\soton\am26g21\JsonOperations.class
+main\java\uk\ac\soton\am26g21\state\State.class
+main\java\uk\ac\soton\am26g21\contract\ChaincodeError.class
+main\java\uk\ac\soton\am26g21\state\ConstraintState.class
+main\java\uk\ac\soton\am26g21\state\UserState.class
+test\java\uk\ac\soton\am26g21\AppTest.class
+main\java\uk\ac\soton\am26g21\contract\PrivacyContract.class

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://github.com/hyperledger-labs/fablo/releases/download/1.2.1-unstable.0/schema.json",
+  "global": {
+    "fabricVersion": "2.5.0",
+    "tls": true,
+    "tools": {
+      "explorer": true
+    }
+  },
+  "orgs": [
+    {
+      "organization": {
+        "name": "Org1",
+        "domain": "org1.co"
+      },
+      "peer": {
+        "instances": 1,
+        "db": "CouchDb"
+      }
+    },
+    {
+      "organization": {
+        "name": "Org2",
+        "domain": "org2.ac"
+      },
+      "peer": {
+        "instances": 1,
+        "db": "CouchDb"
+      }
+    },
+    {
+      "organization": {
+        "name": "Org3",
+        "domain": "org3.gov"
+      },
+      "peer": {
+        "instances": 1,
+        "db": "CouchDb"
+      }
+    },
+    {
+      "organization": {
+        "name": "Owners",
+        "domain": "owners.org"
+      },
+      "peer": {
+        "instances": 1,
+        "db": "CouchDb"
+      },
+      "orderers": [
+        {
+	  "groupName": "host",
+          "prefix": "orderer",
+          "type": "raft",
+          "instances": 1
+        }
+      ],
+      "tools": {
+        "fabloRest": true
+      }
+    }
+  ],
+  "channels": [
+    {
+      "name": "ch1",
+      "orgs": [
+        {
+          "name": "Org1",
+          "peers": [
+            "peer0"
+          ]
+        },
+        {
+          "name": "Org2",
+          "peers": [
+            "peer0"
+          ]
+        },
+        {
+          "name": "Org3",
+          "peers": [
+            "peer0"
+          ]
+        },
+        {
+          "name": "Owners",
+          "peers": [
+            "peer0"
+          ]
+        }
+      ]
+    }
+  ],
+  "chaincodes": [
+    {
+      "name": "privacy",
+      "version": "1.0",
+      "lang": "java",
+      "channel": "ch1",
+      "directory": "chaincode",
+      "endorsement": "OR('OwnersMSP.member', OutOf(2, 'Org1MSP.member', 'Org2MSP.member', 'Org3MSP.member', 'OwnersMSP.member'))",
+      "privateData": [
+	{
+          "name": "CollectionA",
+          "orgNames": ["Org2", "Org3"]
+        }
+      ]
+    }
+  ]
+}
