@@ -37,7 +37,7 @@ public class UserState extends State {
     return genson.deserialize(state, UserState.class);
   }
 
-  public static String key(String data) {
-    return sha256Hex(data);
+  public static String key(String user) {
+    return sha256Hex(user);
   }
 }

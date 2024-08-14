@@ -1,12 +1,12 @@
 package main.java.uk.ac.soton.am26g21.state;
 
-import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
-import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.hashSecret;
-
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import main.java.uk.ac.soton.am26g21.contract.ChaincodeError;
+
+import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
+import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.hashSecret;
 
 @Getter
 @Setter

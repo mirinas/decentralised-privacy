@@ -10,6 +10,24 @@
 
   <name>gateway</name>
 
+  <profiles>
+    <profile>
+      <id>rest</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <properties>
+        <main.class>uk.ac.soton.am26g21.RestApp</main.class>
+      </properties>
+    </profile>
+    <profile>
+      <id>console</id>
+      <properties>
+        <main.class>uk.ac.soton.am26g21.ConsoleApp</main.class>
+      </properties>
+    </profile>
+  </profiles>
+
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>17</maven.compiler.source>
@@ -74,6 +92,7 @@
         <plugin>
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>3.3.1</version>
           <configuration>
             <excludes>
               <exclude>
@@ -95,7 +114,7 @@
             </execution>
           </executions>
           <configuration>
-            <mainClass>uk.ac.soton.am26g21.ConsoleApp</mainClass>
+            <mainClass>${main.class}</mainClass>
           </configuration>
         </plugin>
         <!-- clean lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#clean_Lifecycle -->

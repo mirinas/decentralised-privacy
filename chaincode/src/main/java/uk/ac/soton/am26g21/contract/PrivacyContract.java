@@ -3,35 +3,27 @@
  */
 package main.java.uk.ac.soton.am26g21.contract;
 
-import static main.java.uk.ac.soton.am26g21.state.LedgerState.StateType.CONSTRAINT;
-import static main.java.uk.ac.soton.am26g21.state.LedgerState.StateType.EVENT;
-
 import com.owlike.genson.Genson;
 import com.owlike.genson.GensonBuilder;
+import lombok.NoArgsConstructor;
+import lombok.extern.java.Log;
+import main.java.uk.ac.soton.am26g21.OrganizationAccess;
+import main.java.uk.ac.soton.am26g21.state.*;
+import main.java.uk.ac.soton.am26g21.state.LedgerState.StateType;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.hyperledger.fabric.contract.Context;
+import org.hyperledger.fabric.contract.ContractInterface;
+import org.hyperledger.fabric.contract.annotation.*;
+import org.hyperledger.fabric.contract.annotation.Transaction.TYPE;
+
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.regex.Pattern;
-import lombok.NoArgsConstructor;
-import lombok.extern.java.Log;
-import main.java.uk.ac.soton.am26g21.OrganizationAccess;
-import main.java.uk.ac.soton.am26g21.state.ChaincodeEvent;
-import main.java.uk.ac.soton.am26g21.state.ConstraintState;
-import main.java.uk.ac.soton.am26g21.state.LedgerState;
-import main.java.uk.ac.soton.am26g21.state.LedgerState.StateType;
-import main.java.uk.ac.soton.am26g21.state.UserState;
-import org.apache.commons.codec.binary.Hex;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.hyperledger.fabric.contract.Context;
-import org.hyperledger.fabric.contract.ContractInterface;
-import org.hyperledger.fabric.contract.annotation.Contact;
-import org.hyperledger.fabric.contract.annotation.Contract;
-import org.hyperledger.fabric.contract.annotation.Default;
-import org.hyperledger.fabric.contract.annotation.Info;
-import org.hyperledger.fabric.contract.annotation.License;
-import org.hyperledger.fabric.contract.annotation.Transaction;
-import org.hyperledger.fabric.contract.annotation.Transaction.TYPE;
+
+import static main.java.uk.ac.soton.am26g21.state.LedgerState.StateType.*;
 
 @Contract(info = @Info(
     title = "Privacy contract",
@@ -55,6 +47,282 @@ public class PrivacyContract implements ContractInterface {
   public static final Genson genson = new GensonBuilder()
       .setSkipNull(true)
       .create();
+
+
+  @Transaction(intent = TYPE.SUBMIT)
+  public String RegisterUser(Context ctx, String username) {
+    var stub = ctx.getStub();
+
+    if(!ctx.getClientIdentity().getMSPID().equals(AUTHORITY)) {
+      throw new ChaincodeError("Only users from " + AUTHORITY + " organization can register");
+    }
+
+    var key = AccountState.key(ctx, username);
+    if(!stub.getStringState(key).isBlank()) {
+      throw new ChaincodeError("User already exists!");
+    }
+
+    // create account with hashed secret
+    byte[] secret = stub.getTransient().get("data");
+    var acc = new AccountState(username, secret);
+    stub.putStringState(key, genson.serialize(acc));
+
+    return "User registered successfully";
+  }
+
+
+  @Transaction(intent = TYPE.SUBMIT)
+  public String UploadRequest(Context ctx, String name, String json) {
+    var stub = ctx.getStub();
+    String key = RequestState.key(ctx, name);
+
+    String state = stub.getStringState(key);
+    String client = ctx.getClientIdentity().getMSPID();
+    String date = stub.getTxTimestamp().toString();
+    var request = RequestState.deserialize(name, date, client, state);
+
+    if(!request.getUser().equals(client)) {
+      throw new ChaincodeError("No access to an already created request");
+    }
+
+    request.update(json);
+    stub.putStringState(key, genson.serialize(request));
+    return "Request uploaded";
+  }
+
+
+  @Transaction(intent = TYPE.SUBMIT)
+  public String SendRequest(Context ctx) {
+    var stub = ctx.getStub();
+    var assignees = stub.getParameters();
+
+    String reqName = assignees.remove(0);
+    String key = RequestState.key(ctx, reqName);
+
+    String state = stub.getStringState(key);
+    if(state == null || state.isBlank()) {
+      throw new ChaincodeError("No request named " + reqName);
+    }
+
+    String client = ctx.getClientIdentity().getMSPID();
+    var request = RequestState.deserialize(state);
+
+    if(!request.getUser().equals(client)) {
+      throw new ChaincodeError("No access to the request");
+    }
+
+    // add unsigned assignees to request attribute `assignees`
+    assignees.forEach(request::addAssignee);
+    stub.putStringState(key, genson.serialize(request));
+
+    return "Request send to assignees";
+  }
+
+
+  @Transaction(intent = TYPE.SUBMIT)
+  public String SignRequest(Context ctx, String reqName, String user) {
+    var stub = ctx.getStub();
+
+    if(!ctx.getClientIdentity().getMSPID().equals(AUTHORITY)) {
+      throw new ChaincodeError("Only users from " + AUTHORITY + " organization can sign requests");
+    }
+
+    String accState = stub.getStringState(AccountState.key(ctx, user));
+    if(accState == null || accState.isBlank()) {
+      throw new ChaincodeError("User does not exist!");
+    }
+
+    // validate user secret
+    byte[] secret = stub.getTransient().get("data");
+    var account = AccountState.deserialize(accState);
+    account.validateSecret(secret);
+
+    String key = RequestState.key(ctx, reqName);
+    String reqState = stub.getStringState(key);
+    if(reqState == null || reqState.isBlank()) {
+      throw new ChaincodeError("No request named " + reqName);
+    }
+    var request = RequestState.deserialize(reqState);
+    request.sign(user);
+    stub.putStringState(key, genson.serialize(request));
+
+    return "Successfully signed " + reqName;
+  }
+
+  @Transaction(intent = TYPE.SUBMIT)
+  public String RefineAndSignRequest(Context ctx, String requestName, String username, String json) {
+    var stub = ctx.getStub();
+
+    if(!ctx.getClientIdentity().getMSPID().equals(AUTHORITY)) {
+      throw new ChaincodeError("Only users from " + AUTHORITY + " organization can refine requests");
+    }
+
+    String accState = stub.getStringState(AccountState.key(ctx, username));
+    if(accState == null || accState.isBlank()) {
+      throw new ChaincodeError("User does not exist!");
+    }
+
+    // validate user secret
+    byte[] secret = stub.getTransient().get("data");
+    var account = AccountState.deserialize(accState);
+    account.validateSecret(secret);
+
+    // check if request to be refined exists
+    String reqState = stub.getStringState(RequestState.key(ctx, requestName));
+    if(reqState == null || reqState.isBlank()) {
+      throw new ChaincodeError("Request does not exist!");
+    }
+    var request = RequestState.deserialize(reqState);
+    String requestOwner = request.getUser();
+
+    // create refinement
+    String refState = stub.getStringState(RefineState.key(ctx, requestName, username));
+    String date = stub.getTxTimestamp().toString();
+    var refine = RefineState.deserialize(requestName, date, requestOwner, refState);
+    refine.update(json);
+
+    // sign and write refinement
+    refine.sign(username);
+    stub.putStringState(RefineState.key(ctx, requestName, username), genson.serialize(refine));
+
+    // sign and update request
+    request.sign(username);
+    stub.putStringState(RequestState.key(ctx, requestName), genson.serialize(request));
+
+    return "Successfully refined and signed request " + requestName;
+  }
+
+
+
+  @Transaction(intent = TYPE.SUBMIT)
+  public String RevokeConsent(Context ctx, String reqName, String user) {
+    var stub = ctx.getStub();
+
+    if(!ctx.getClientIdentity().getMSPID().equals(AUTHORITY)) {
+      throw new ChaincodeError("Only users from " + AUTHORITY + " organization can revoke requests");
+    }
+
+    String accState = stub.getStringState(AccountState.key(ctx, user));
+    if(accState == null || accState.isBlank()) {
+      throw new ChaincodeError("User does not exist!");
+    }
+
+    // validate user secret
+    byte[] secret = stub.getTransient().get("data");
+    var account = AccountState.deserialize(accState);
+    account.validateSecret(secret);
+
+    String key = RequestState.key(ctx, reqName);
+    String reqState = stub.getStringState(key);
+    if(reqState == null || reqState.isBlank()) {
+      throw new ChaincodeError("No request named " + reqName);
+    }
+    var request = RequestState.deserialize(reqState);
+    request.revoke(user);
+    stub.putStringState(key, genson.serialize(request));
+
+    return "Successfully revoked " + reqName;
+  }
+
+//  @Transaction(intent = TYPE.SUBMIT)
+//  public String () {}
+
+
+  @Transaction(intent = TYPE.SUBMIT)
+  public String Store(Context ctx, String reqName, String controller, String descriptor) {
+    var stub = ctx.getStub();
+    var client = ctx.getClientIdentity().getMSPID();
+
+    // check if access is granted
+    String key = RequestState.key(ctx, reqName);
+    var request = RequestState.deserialize(stub.getStringState(key));
+    request.checkAccess(client, controller, descriptor, "store");
+
+    // write value to the collection
+    String controllerKey = UserState.key(controller);
+    String collection = IMPLICIT + client;
+    String input = new String(stub.getTransient().get("data"));
+
+    var state = UserState.deserialize(controller, stub.getPrivateDataUTF8(collection, controllerKey));
+    state.set(descriptor, input);
+    stub.putPrivateData(collection, controllerKey, genson.serialize(state));
+
+    return "Successfully updated user " + controller;
+  }
+
+
+  @Transaction(intent = TYPE.EVALUATE)
+  public String GetUserRequests(Context ctx, String user) {
+    var query = new CouchQuery()
+            .term("selector", Map.of(
+                    "type", REQUEST.getValue(),
+                    "assignees", Map.of(
+                            user, Map.of("$exists", true)
+                    )
+            ));
+    return QueryLedger(ctx, query.toString());
+  }
+
+  @Transaction(intent = TYPE.EVALUATE)
+  public String GetControllerRequests(Context ctx, String mspId) {
+    var query = new CouchQuery()
+            .term("selector", Map.of(
+                    "type", REQUEST.getValue(),
+                    "user", mspId
+            ));
+    return QueryLedger(ctx, query.toString());
+  }
+
+  @Transaction(intent = TYPE.EVALUATE)
+  public String GetRequest(Context ctx, String requestName) {
+
+    String key = RequestState.key(ctx, requestName);
+    return ctx.getStub().getStringState(key);
+  }
+
+  @Transaction(intent = TYPE.EVALUATE)
+  public String GetRefinement(Context ctx, String requestName, String username) {
+
+    String key = RefineState.key(ctx, requestName, username);
+    return ctx.getStub().getStringState(key);
+  }
+
+
+  @Transaction(intent = TYPE.EVALUATE)
+  public String ReadUser(Context ctx, String user) {
+    String client = ctx.getClientIdentity().getMSPID();
+    return ctx.getStub().getPrivateDataUTF8(IMPLICIT + client, UserState.key(user));
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -253,8 +521,7 @@ public class PrivacyContract implements ContractInterface {
       access.accessRead(collection);
     });
 
-    // record events for all data subjects that have been read
-    return res.toString();
+    return "[" + String.join(",", res.values()) + "]";
   }
 
   @Transaction(intent = TYPE.SUBMIT)
@@ -264,7 +531,7 @@ public class PrivacyContract implements ContractInterface {
 
   @Transaction(intent = TYPE.EVALUATE)
   public String QueryLedger(Context ctx, String query) {
-    return queryLedger(ctx, new CouchQuery(query)).toString();
+    return "[" + String.join(",", queryLedger(ctx, new CouchQuery(query)).values()) + "]";
   }
 
 

@@ -1,12 +1,5 @@
 package test.java.uk.ac.soton.am26g21;
 
-import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.util.List;
-import java.util.Map;
 import main.java.uk.ac.soton.am26g21.OrganizationAccess;
 import main.java.uk.ac.soton.am26g21.state.LedgerState;
 import main.java.uk.ac.soton.am26g21.state.LedgerState.StateType;
@@ -18,7 +11,29 @@ import org.hyperledger.fabric.shim.ChaincodeStub;
 import org.hyperledger.fabric.shim.ledger.CompositeKey;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+
+import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class AppTest {
+
+    @Test
+    public void testDateParsing() {
+        String date = "2024-08-06";
+        var startDate = LocalDate.parse(date);
+        var endDate = LocalDate.parse("2024-08-07");
+
+        var now = LocalDate.now();
+        if(     (!endDate.isEqual(now) && !endDate.isAfter(now)) ||
+                (!startDate.isEqual(now) && !startDate.isBefore(now))) {
+            System.out.println("INVALID");
+        }
+    }
 
     @Test
     public void testJsonUpdate() {

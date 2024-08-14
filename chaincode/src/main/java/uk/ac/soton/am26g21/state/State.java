@@ -1,12 +1,13 @@
 package main.java.uk.ac.soton.am26g21.state;
 
-import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
-
 import com.owlike.genson.annotation.JsonIgnore;
 import com.owlike.genson.annotation.JsonProperty;
-import java.util.Map;
 import main.java.uk.ac.soton.am26g21.JsonOperations;
 import org.json.JSONObject;
+
+import java.util.Map;
+
+import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
 
 public class State {
   @JsonIgnore
@@ -42,6 +43,7 @@ public class State {
 
   @JsonProperty
   public Object getState() {
+    if(state == null) return null;
     return genson.deserialize(state.toString(), Object.class);
   }
 

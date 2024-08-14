@@ -1,13 +1,14 @@
 package main.java.uk.ac.soton.am26g21;
 
-import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
+import lombok.Data;
+import main.java.uk.ac.soton.am26g21.contract.ChaincodeError;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import lombok.Data;
-import main.java.uk.ac.soton.am26g21.contract.ChaincodeError;
-import org.json.JSONObject;
+
+import static main.java.uk.ac.soton.am26g21.contract.PrivacyContract.genson;
 
 @Data
 public class JsonOperations {
